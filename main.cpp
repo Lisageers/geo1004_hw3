@@ -74,33 +74,51 @@ std::unordered_map<std::string, std::vector<std::vector<float>>> parse_coordinat
             result.push_back(stof(substr));
         }
 
-        std::cout << result.size() << "\n";
-        std::cout << result[1] << "\n";
-
         // put in dictionary
         for(int j=0;j<result.size();j+=2)
         {
-            coordinate_floats[id].push_back({result[j], result[j+1], 0});
+            coordinate_floats[id].push_back({result[j], result[j+1], 0.0});
         }
     }
     return coordinate_floats;
 }
 
-std::vector<std::vector<float>> update_geometry(json footprints)
+std::vector<std::vector<float>> create_verticeslist(std::unordered_map<std::string, std::vector<std::vector<float>>> cordsdict)
 {
     std::vector<std::vector<float>> vertices;
 
+    // get values from dictionary and put in vector
+    for(auto &values : cordsdict)
+    {
+        for(auto &cords : values.second)
+        {
+            vertices.push_back(cords);
+        }
+    }
+    // make unique
+    std::vector<std::vector<float>>::iterator itr = unique(vertices.begin(), vertices.end());
 
-//    std::vector<int>::iterator ip;
-//    ip = std::unique(vertices.begin(), vertices.begin() + 12);
-//    // Now v becomes {1 3 10 1 3 7 8 * * * * *}
-//    // * means undefined
-//
-//    // Resizing the vector so as to remove the undefined terms
-//    vertices.resize(std::distance(vertices.begin(), ip));
     return vertices;
 }
 
+std::unordered_map<std::string, std::vector<int>> reference_coordinates(std::unordered_map<std::string, std::vector<std::vector<float>>> cordsdict, std::vector<std::vector<float>> cordslist)
+{
+    std::unordered_map<std::string, std::vector<int>> referencesdict;
+
+    for(auto &dict : cordsdict)
+    {
+        std::string id = dict.first;
+        referencesdict.emplace(id, std::vector<int>());
+        for(auto &cords : dict.second)
+        {
+            auto it = find(cordslist.begin(), cordslist.end(), cords);
+            int index = it - cordslist.begin();
+            referencesdict[id].push_back(index);
+        }
+    }
+
+    return referencesdict;
+}
 
 
 int main() {
@@ -114,8 +132,9 @@ int main() {
     json buildings;
     buildings = initCityJSON(buildings, footprints);
     std::unordered_map<std::string, std::vector<std::vector<float>>> parsed_cords = parse_coordinates(footprints);
-    std::vector<std::vector<float>> verticeslist = update_geometry(parsed_cords);
+    std::vector<std::vector<float>> verticeslist = create_verticeslist(parsed_cords);
     // function with references to veritceslist
+    std::unordered_map<std::string, std::vector<int>> referencedcords = reference_coordinates(parsed_cords, verticeslist);
     // write json
     std::ofstream o(file_out);
     o << std::setw(4) << buildings << std::endl;
