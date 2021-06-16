@@ -5,6 +5,7 @@
 #include <vector>
 #include <algorithm>
 #include "nlohmann/json.hpp"
+#include <sstream>
 
 using json = nlohmann::json;
 
@@ -18,15 +19,6 @@ struct pair_hash
     }
 };
 
-//template<typename T>
-//void Remove( std::basic_string<T> & Str, const T * CharsToRemove )
-//{
-//    std::basic_string<T>::size_type pos = 0;
-//    while (( pos = Str.find_first_of( CharsToRemove, pos )) != std::basic_string<T>::npos )
-//    {
-//        Str.erase( pos, 1 );
-//    }
-//}
 
 json initCityJSON(json buildings, json footprints) {
     buildings["type"] = "CityJSON";
@@ -52,26 +44,44 @@ json initCityJSON(json buildings, json footprints) {
     return buildings;
 }
 
-std::unordered_map<json, std::vector<std::vector<float>>> parse_coordinates(json footprints)
+std::unordered_map<std::string, std::vector<std::vector<float>>> parse_coordinates(json footprints)
 {
-    std::unordered_map<json, std::vector<std::vector<float>>> coordinate_floats;
+    std::unordered_map<std::string, std::vector<std::vector<float>>> coordinate_floats;
 
     for(int i=0;i<footprints["features"].size();i++)
     {
+        // initialise dict
         std::string id = footprints["features"][i]["properties"]["identificatie"];
+        coordinate_floats.emplace(id, std::vector<std::vector<float>>());
+
         json cordlist = footprints["features"][i]["geometry"]["coordinates"];
-        std::string cordstr = cordlist.dump(1);
+        std::string cordstr = cordlist.dump();
 
-        char chars[] = "[],";
+        // remove [ and ]
+        char chars[] = "[]";
+        for (unsigned int i = 0; i < strlen(chars); ++i)
+        {
+            cordstr.erase (std::remove(cordstr.begin(), cordstr.end(), chars[i]), cordstr.end());
+        }
 
-//        for (unsigned int i = 0; i < strlen(chars); ++i)
-//        {
-//            cordstr.erase (std::remove(cordstr.begin(), cordstr.end(), chars[i]), cordstr.end());
-//        }
+        // parse coordinates into vector one at the time by splitting at ,
+        std::stringstream ss(cordstr);
+        std::vector<float> result;
+        while(ss.good())
+        {
+            std::string substr;
+            std::getline(ss, substr, ',' );
+            result.push_back(stof(substr));
+        }
 
+        std::cout << result.size() << "\n";
+        std::cout << result[1] << "\n";
 
-        std::cout << cordstr << "\n";
-
+        // put in dictionary
+        for(int j=0;j<result.size();j+=2)
+        {
+            coordinate_floats[id].push_back({result[j], result[j+1], 0});
+        }
     }
     return coordinate_floats;
 }
@@ -101,10 +111,9 @@ int main() {
     json footprints;
     i >> footprints;
 
-    std::cout << footprints["type"];
     json buildings;
     buildings = initCityJSON(buildings, footprints);
-    std::unordered_map<json, std::vector<std::vector<float>>> parsed_cords = parse_coordinates(footprints);
+    std::unordered_map<std::string, std::vector<std::vector<float>>> parsed_cords = parse_coordinates(footprints);
     std::vector<std::vector<float>> verticeslist = update_geometry(parsed_cords);
     // function with references to veritceslist
     // write json
