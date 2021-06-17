@@ -20,26 +20,32 @@ struct pair_hash
 };
 
 
-json initCityJSON(json buildings, json footprints) {
+json initCityJSON(json buildings, json footprints, std::vector<std::vector<float>> verticeslist, std::unordered_map<std::string, std::vector<int>> referencedcords) {
     buildings["type"] = "CityJSON";
     buildings["version"] = "1.0";
 
     buildings["metadata"]["referenceSystem"] = "urn:ogc:def:crs:EPSG::7415";
-    buildings["CityObjects"] = {};
-//    buildings["vertices"] = [];
     for(int i=0;i<footprints["features"].size();i++)
     {
         std::string id = footprints["features"][i]["properties"]["identificatie"];
         buildings["CityObjects"]["id-"+ id]["Type"] = "Building";
-        buildings["CityObjects"]["id-"+ id]["lod"] = "1.3";
         buildings["CityObjects"]["id-"+ id]["attributes"]["yearOfConstruction"] = footprints["features"][i]["properties"]["bouwjaar"];
+
         buildings["CityObjects"]["id-"+ id]["attributes"]["measuredHeight"] = 0;
         buildings["CityObjects"]["id-"+ id]["attributes"]["storeysAboveGround"] = 0;
 
-        buildings["CityObjects"]["id-"+ id]["geometry"]["type"] = "MultiSurface";
-        buildings["CityObjects"]["id-"+ id]["geometry"]["lod"] = "1.3";
-        buildings["CityObjects"]["id-"+ id]["geometry"]["boundaries"] = footprints["features"][i]["geometry"]["coordinates"];
+        // make a list for the geometries
+        std::vector<json> geometrylist;
+        json geometry;
+        geometry["type"] = "MultiSurface";
+        geometry["lod"] = "0.1";
+
+        std::vector<std::vector<std::vector<int>>> cordsformat = {{referencedcords[id]}};
+        geometry["boundaries"] = cordsformat;
+        geometrylist.push_back(geometry);
+        buildings["CityObjects"]["id-"+ id]["geometry"] = geometrylist;
     }
+    buildings["vertices"] = verticeslist;
 
     return buildings;
 }
@@ -95,8 +101,8 @@ std::vector<std::vector<float>> create_verticeslist(std::unordered_map<std::stri
             vertices.push_back(cords);
         }
     }
-    // make unique
-    std::vector<std::vector<float>>::iterator itr = unique(vertices.begin(), vertices.end());
+    // make unique -- didnt work
+//    std::vector<std::vector<float>>::iterator itr = unique(vertices.begin(), vertices.end());
 
     return vertices;
 }
@@ -111,9 +117,15 @@ std::unordered_map<std::string, std::vector<int>> reference_coordinates(std::uno
         referencesdict.emplace(id, std::vector<int>());
         for(auto &cords : dict.second)
         {
-            auto it = find(cordslist.begin(), cordslist.end(), cords);
-            int index = it - cordslist.begin();
-            referencesdict[id].push_back(index);
+            for(int i=0;i<cordslist.size();i++)
+            {
+                if(cords[0] == cordslist[i][0] && cords[1] == cordslist[i][1])
+                {
+                    int index = i;
+                    referencesdict[id].push_back(index);
+                    break;
+                }
+            }
         }
     }
 
@@ -129,12 +141,15 @@ int main() {
     json footprints;
     i >> footprints;
 
-    json buildings;
-    buildings = initCityJSON(buildings, footprints);
+
     std::unordered_map<std::string, std::vector<std::vector<float>>> parsed_cords = parse_coordinates(footprints);
     std::vector<std::vector<float>> verticeslist = create_verticeslist(parsed_cords);
     // function with references to veritceslist
     std::unordered_map<std::string, std::vector<int>> referencedcords = reference_coordinates(parsed_cords, verticeslist);
+
+    json buildings;
+    buildings = initCityJSON(buildings, footprints, verticeslist, referencedcords);
+
     // write json
     std::ofstream o(file_out);
     o << std::setw(4) << buildings << std::endl;
