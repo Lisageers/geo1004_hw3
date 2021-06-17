@@ -39,6 +39,7 @@ json initCityJSON(json buildings, json footprints, std::vector<std::vector<float
         json geometry;
         geometry["type"] = "MultiSurface";
         geometry["lod"] = "0.1";
+        geometry["semantics"]["surfaces"]["type"] = "GroundSurface";
 
         std::vector<std::vector<std::vector<int>>> cordsformat = {{referencedcords[id]}};
         geometry["boundaries"] = cordsformat;
@@ -141,10 +142,8 @@ int main() {
     json footprints;
     i >> footprints;
 
-
     std::unordered_map<std::string, std::vector<std::vector<float>>> parsed_cords = parse_coordinates(footprints);
     std::vector<std::vector<float>> verticeslist = create_verticeslist(parsed_cords);
-    // function with references to veritceslist
     std::unordered_map<std::string, std::vector<int>> referencedcords = reference_coordinates(parsed_cords, verticeslist);
 
     json buildings;
